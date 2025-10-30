@@ -2,6 +2,8 @@
 
 module MyLib where
 
+import Data.List
+
 -- problemZero
 
 perfectSquares :: Int -> [Int]
@@ -73,7 +75,30 @@ canonicalFactorsForm (f : fs) n
     where
         (p', n') = factorPower n f
 
+-- returns representation of a number as a list of prime factors and their power
 primeCanonicalFactorsForm :: Integer -> [(Integer, Integer)]
 primeCanonicalFactorsForm = canonicalFactorsForm primes
 
+largestPrimeFactor :: Integer -> Integer
+largestPrimeFactor n = fst (last (primeCanonicalFactorsForm n))
+
 -- Largest Palindrome Product https://projecteuler.net/problem=4
+
+int2Digits :: Int -> [Int]
+int2Digits 0 = []
+int2Digits n = (n `mod` 10) : int2Digits (n `div` 10)
+
+isPalindrome :: (Eq a) => [a] -> Bool
+isPalindrome a = a == reverse a
+
+isIntPalindrome :: Int -> Bool
+isIntPalindrome n = isPalindrome (int2Digits n)
+
+largestProduct :: (Int, Int) -> (Int, Int) -> Ordering
+largestProduct (a, b) (a', b') = compare (a * b) (a' * b')
+
+productPairs3 :: [(Int, Int)]
+productPairs3 = sortBy (flip largestProduct) ([(a, b) | a <- [999, 998 .. 1], b <- [a, a - 1 .. 1]])
+
+largestPalindromeProduct3 :: (Int, Int)
+largestPalindromeProduct3 = head (filter (\(a, b) -> isIntPalindrome (a * b)) productPairs3)
