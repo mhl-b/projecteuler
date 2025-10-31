@@ -57,14 +57,17 @@ primes :: [Integer]
 primes = 2 : [x | x <- [3, 5 ..], isPrimeTrialDivision x]
 
 -- returns power of factor and reminder of N after applying factor power
-factorPower :: Integer -> Integer -> (Integer, Integer)
+
+type CanonicalFactor = (Integer, Integer)
+
+factorPower :: Integer -> Integer -> CanonicalFactor
 factorPower n f
         | isFactor n f = (1 + p', n')
         | otherwise = (0, n)
     where
         (p', n') = factorPower (n `div` f) f
 
-canonicalFactorsForm :: [Integer] -> Integer -> [(Integer, Integer)]
+canonicalFactorsForm :: [Integer] -> Integer -> [CanonicalFactor]
 canonicalFactorsForm [] _ = []
 canonicalFactorsForm (f : fs) n
         | n == 1 = []
@@ -76,7 +79,7 @@ canonicalFactorsForm (f : fs) n
         (p', n') = factorPower n f
 
 -- returns representation of a number as a list of prime factors and their power
-primeCanonicalFactorsForm :: Integer -> [(Integer, Integer)]
+primeCanonicalFactorsForm :: Integer -> [CanonicalFactor]
 primeCanonicalFactorsForm = canonicalFactorsForm primes
 
 largestPrimeFactor :: Integer -> Integer
@@ -102,3 +105,28 @@ productPairs3 = sortBy (flip largestProduct) ([(a, b) | a <- [999, 998 .. 1], b 
 
 largestPalindromeProduct3 :: (Int, Int)
 largestPalindromeProduct3 = head (filter (\(a, b) -> isIntPalindrome (a * b)) productPairs3)
+
+-- Smallest Multiple https://projecteuler.net/problem=5
+
+mergeCanonicalFactors :: [CanonicalFactor] -> [CanonicalFactor] -> [CanonicalFactor]
+mergeCanonicalFactors [] [] = []
+mergeCanonicalFactors [] fs = fs
+mergeCanonicalFactors fs [] = fs
+mergeCanonicalFactors (f : fs) (f' : fs') =
+        case compare f1 f2 of
+                LT -> f : mergeCanonicalFactors fs (f' : fs')
+                GT -> f' : mergeCanonicalFactors (f : fs) fs'
+                EQ -> (f1, max p1 p2) : mergeCanonicalFactors fs fs'
+    where
+        (f1, p1) = f
+        (f2, p2) = f'
+
+mergeCanonicalFactorsForRange :: [Integer] -> [CanonicalFactor]
+mergeCanonicalFactorsForRange = foldr (mergeCanonicalFactors . primeCanonicalFactorsForm) []
+
+canonicalFactorsToInteger :: [CanonicalFactor] -> Integer
+canonicalFactorsToInteger [] = 1
+canonicalFactorsToInteger fs = foldr (\(f, p) a -> a * f ^ p) 1 fs
+
+smallestMultiple :: [Integer] -> Integer
+smallestMultiple = canonicalFactorsToInteger . mergeCanonicalFactorsForRange
