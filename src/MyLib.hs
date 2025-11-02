@@ -4,7 +4,7 @@
 module MyLib where
 
 import Data.List
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import Text.Read (readMaybe)
 
 -- problemZero
@@ -23,13 +23,16 @@ multiples3or5Brute n = sum [x | x <- [1 .. n - 1], x `mod` 3 == 0 || x `mod` 5 =
 arithmeticSeriesAn :: Int -> Int -> Int -> Int
 arithmeticSeriesAn n a1 an = n * (an - a1) `div` 2
 
-arithmeticSeriesD :: Int -> Int -> Int -> Int
+arithmeticSeriesD :: Integer -> Integer -> Integer -> Integer
 arithmeticSeriesD n a1 d = n * (2 * a1 + (n - 1) * d) `div` 2
 
-arithmeticSeriesD0 :: Int -> Int -> Int
+arithmeticSeriesD0 :: Integer -> Integer -> Integer
 arithmeticSeriesD0 n d = arithmeticSeriesD n d d
 
-multiples3or5Series :: Int -> Int
+arithmeticSeries :: Integer -> Integer
+arithmeticSeries n = arithmeticSeriesD0 n 1
+
+multiples3or5Series :: Integer -> Integer
 multiples3or5Series n = arithmeticSeriesD0 (n' `div` 3) 3 + arithmeticSeriesD0 (n' `div` 5) 5 - arithmeticSeriesD0 (n' `div` 15) 15
   where
     n' = n - 1
@@ -56,11 +59,19 @@ intSqrt = (ceiling @Float) . sqrt . fromIntegral
 isFactor :: Integer -> Integer -> Bool
 isFactor n f = n `mod` f == 0
 
-isPrimeTrialDivision :: Integer -> Bool
-isPrimeTrialDivision n = not (any (isFactor n) (2 : [3, 5 .. (intSqrtUp n)]))
+isPrimeTrialDivisionSieve :: [Integer] -> Integer -> Bool
+isPrimeTrialDivisionSieve sieve n = not (any (isFactor n) (takeWhile (<= intSqrtUp n) sieve))
+
+nextPrime :: [Integer] -> Integer -> Integer
+nextPrime [] _ = 2
+nextPrime ps lp = fromMaybe undefined (listToMaybe [x | x <- [lp + 1 ..], isPrimeTrialDivisionSieve ps x])
 
 primes :: [Integer]
-primes = 2 : [x | x <- [3, 5 ..], isPrimeTrialDivision x]
+primes = go [] 0
+  where
+    go ps lp = p : go (ps ++ [p]) p
+      where
+        p = nextPrime ps lp
 
 -- returns power of factor and reminder of N after applying factor power
 
@@ -68,7 +79,8 @@ type CanonicalFactor = (Integer, Integer)
 
 type Factor = Integer
 
-factorPower :: Integer -> Factor -> CanonicalFactor
+-- returns power of factor and reminder of N after applying factor^power
+factorPower :: Integer -> Factor -> (Integer, Integer)
 factorPower n f
   | isFactor n f = (1 + p', n')
   | otherwise = (0, n)
@@ -180,6 +192,13 @@ problem8Input =
   71636269561882670428252483600823257530420752963450
   """
 
+splitWith :: (Eq a) => (a -> Bool) -> [a] -> [[a]]
+splitWith p xs = case break p (dropWhile p xs) of
+  ([], []) -> []
+  (s', []) -> [s']
+  ([], xs') -> [xs']
+  (s', xs') -> s' : splitWith p xs'
+
 problem8Digits :: [Integer]
 problem8Digits = mapMaybe (readMaybe . (: [])) problem8Input
 
@@ -190,6 +209,12 @@ adjacentDigits w ds
 
 largestProductInASeries :: Int -> Integer
 largestProductInASeries w = maximum (map product (adjacentDigits w problem8Digits))
+
+largestProductInASeries2 :: Int -> Integer
+largestProductInASeries2 w = maximum (map product subSeries)
+  where
+    nonZeroSeries = splitWith (== 0) problem8Digits
+    subSeries = concatMap (takeWhile (\ds -> length ds == w) . adjacentDigits w) nonZeroSeries
 
 -- Special Pythagorean Triplet https://projecteuler.net/problem=9
 
@@ -252,8 +277,11 @@ problem11Input =
   01 70 54 71 83 51 54 69 16 92 33 48 61 43 52 01 89 19 67 48
   """
 
+readIntsSpaceDilim :: String -> [Int]
+readIntsSpaceDilim s = mapMaybe readMaybe (words s)
+
 problem11Nums :: [Int]
-problem11Nums = mapMaybe readMaybe (words problem11Input)
+problem11Nums = readIntsSpaceDilim problem11Input
 
 chunks :: Int -> [a] -> [[a]]
 chunks w xs
@@ -281,3 +309,45 @@ m4Strips m4 = m4 ++ transpose m4 ++ m4Diags m4
 
 largestProductInGrid :: Int
 largestProductInGrid = maximum (map product (concatMap m4Strips grid20Split))
+
+-- Highly Divisible Triangular Number https://projecteuler.net/problem=12
+
+triangleNumbers :: [Integer]
+triangleNumbers = [arithmeticSeries x | x <- [1 ..]]
+
+factorial :: (Integral a) => a -> a
+factorial n = product [1 .. n]
+
+combination :: Integer -> Integer -> Integer
+combination _ 0 = 0
+combination n k = factorial n `div` (factorial k * factorial (n - k))
+
+divisorsBrute :: Integer -> [Integer]
+divisorsBrute n = [x | x <- [1 .. n], n `mod` x == 0]
+
+numberOfDivisorsBrute :: Integer -> Integer
+numberOfDivisorsBrute = fromIntegral . length . divisorsBrute
+
+numberOfDivisorsFromCanonical :: [CanonicalFactor] -> Integer
+numberOfDivisorsFromCanonical = product . map ((+ 1) . snd)
+
+divisorsProduct :: [Integer] -> [Integer] -> [Integer]
+divisorsProduct a b = a ++ b ++ [a' * b' | a' <- a, b' <- b]
+
+factorDivisors :: CanonicalFactor -> [Integer]
+factorDivisors (b, f) = [b ^ f' | f' <- [1 .. f]]
+
+canonicalFromToDivisors :: [CanonicalFactor] -> [Integer]
+canonicalFromToDivisors fs = 1 : foldr (divisorsProduct . factorDivisors) [] fs
+
+divisorsCanonical :: Integer -> [Integer]
+divisorsCanonical = canonicalFromToDivisors . primeCanonicalFactorsForm
+
+numberOfDivisors :: Integer -> Integer
+numberOfDivisors = numberOfDivisorsFromCanonical . primeCanonicalFactorsForm
+
+highlyDivisbleTriangularNumber :: Integer -> Integer
+highlyDivisbleTriangularNumber divisors =
+  fromMaybe
+    undefined
+    (find (\n -> numberOfDivisors n > divisors) triangleNumbers)
