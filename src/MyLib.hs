@@ -3,7 +3,10 @@
 
 module MyLib where
 
+import Data.Function
 import Data.Int
+import Data.IntMap.Lazy (IntMap)
+import qualified Data.IntMap.Lazy as IntMap
 import Data.List
 import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import Text.Read (readMaybe)
@@ -477,19 +480,47 @@ problem13Nums :: [LargeNum]
 problem13Nums = readLargeNums problem13Input
 
 largeNumAdd :: LargeNum -> LargeNum -> LargeNum
-largeNumAdd = go 0
+largeNumAdd = addWithCarry 0
   where
-    add :: Digit -> Digit -> LargeNum -> LargeNum -> LargeNum
-    add d r ds1 ds2 = (d + r) `mod` 10 : go ((d + r) `div` 10) ds1 ds2
-    go :: Digit -> LargeNum -> LargeNum -> LargeNum
-    go 0 [] [] = []
-    go 0 a [] = a
-    go 0 [] b = b
-    go 1 [] [] = [1]
-    go 1 (d : ds) [] = add d 1 ds []
-    go 1 [] (d : ds) = add d 1 ds []
-    go r (d1 : ds1) (d2 : ds2) = add (d1 + d2) r ds1 ds2
-    go _ _ _ = undefined
+    carryFowrard d carry ds1 ds2 = (d + carry) `mod` 10 : addWithCarry ((d + carry) `div` 10) ds1 ds2
+    addWithCarry 0 a [] = a
+    addWithCarry 0 [] b = b
+    addWithCarry 1 [] [] = [1]
+    addWithCarry 1 (d : ds) [] = carryFowrard d 1 ds []
+    addWithCarry 1 [] (d : ds) = carryFowrard d 1 ds []
+    addWithCarry r (d1 : ds1) (d2 : ds2) = carryFowrard (d1 + d2) r ds1 ds2
+    addWithCarry _ _ _ = undefined
 
 largeSum :: [LargeNum] -> String
 largeSum = take 10 . showLargeNum . foldr largeNumAdd []
+
+-- Longest Collatz Sequence https://projecteuler.net/problem=14
+
+collatz :: Int -> Int
+collatz n
+  | even n = n `div` 2
+  | otherwise = n * 3 + 1
+
+collatzSeq :: Int -> [Int]
+collatzSeq n = takeWhile (> 1) (iterate collatz n) ++ [1]
+
+longestCollatzSeq :: Int -> (Int, [Int])
+longestCollatzSeq lim = maximumBy (compare `on` fst) [(length s, s) | n <- [lim, lim - 1 .. 1], let s = collatzSeq n]
+
+type CollatzMem = IntMap Int
+
+updateCollatzMem :: CollatzMem -> Int -> CollatzMem
+updateCollatzMem mem n =
+  let cq = collatzSeq n
+      vals = takeWhile (`IntMap.notMember` mem) cq
+      len = length vals
+      lastKnown = case drop len cq of
+        [] -> 0
+        (n' : _) -> mem IntMap.! n'
+      off = len + lastKnown
+   in case vals of
+        [] -> mem
+        xs -> IntMap.union mem (IntMap.fromList (zip xs [off, off - 1 .. 1]))
+
+longestCollatzSeqMem :: Int -> Int
+longestCollatzSeqMem lim = maximum (IntMap.elems (foldr (flip updateCollatzMem) IntMap.empty [1 .. lim]))
