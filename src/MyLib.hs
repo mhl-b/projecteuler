@@ -523,4 +523,160 @@ updateCollatzMem mem n =
         xs -> IntMap.union mem (IntMap.fromList (zip xs [off, off - 1 .. 1]))
 
 longestCollatzSeqMem :: Int -> Int
-longestCollatzSeqMem lim = maximum (IntMap.elems (foldr (flip updateCollatzMem) IntMap.empty [1 .. lim]))
+longestCollatzSeqMem lim =
+  maximum
+    ( IntMap.elems
+        -- calculate and remember all collatz sequences length for numbers 1..lim
+        (foldr (flip updateCollatzMem) IntMap.empty [1 .. lim])
+    )
+
+-- Lattice Paths https://projecteuler.net/problem=15
+
+takeButLast :: [a] -> [a]
+takeButLast [] = []
+takeButLast xs = take (length xs - 1) xs
+
+runningSum :: [Int] -> [Int]
+runningSum ns = takeButLast (go [] ns)
+  where
+    go [] [] = []
+    go xs [] = xs
+    go [] [x] = [x]
+    go [] (_ : y : xs) = go [y] (y : xs)
+    go (s : ss) (x : xs) = s' : go (s' : ss) xs
+      where
+        s' = x + s
+
+runningSums :: [Int] -> [[Int]]
+runningSums xs = takeWhile (not . null) (iterate runningSum xs)
+
+runningSumsSquare :: Int -> [[Int]]
+runningSumsSquare n = runningSums (replicate (n + 1) 1)
+
+latticePaths :: Int -> Int
+latticePaths n = last (concat (runningSumsSquare n))
+
+-- Power Digit Sum https://projecteuler.net/problem=16
+
+digitSum :: Integer -> Integer
+digitSum 0 = 0
+digitSum n = let (q, r) = divMod n 10 in r + digitSum q
+
+intToLargeNum :: Int -> LargeNum
+intToLargeNum 0 = []
+intToLargeNum n = let (q, r) = divMod n 10 in fromIntegral r : intToLargeNum q
+
+powerDigitSum :: Int -> Int -> Int
+powerDigitSum base p =
+  let base' = intToLargeNum base
+      powerSeqs = iterate (\n -> largeNumAdd n n) base'
+   in foldr ((+) . fromIntegral) (0 :: Int) (last (take p powerSeqs))
+
+-- Number Letter Counts https://projecteuler.net/problem=17
+
+numberLetterCounts :: Int
+numberLetterCounts =
+  let singleDigitLetters = 3 + 3 + 5 + 4 + 4 + 3 + 5 + 5 + 4
+      teensLetters = 3 + 6 + 6 + 8 + 8 + 7 + 7 + 9 + 8 + 8
+      doublesLetters = 6 + 6 + 5 + 5 + 5 + 7 + 6 + 6
+      hundredLetters = 7
+      andLetters = 3
+      lastDigitSum = singleDigitLetters * 9 * 10
+      teensSum = teensLetters * 10
+      doublesSum = doublesLetters * 10 * 10
+      hundredsSum = 100 * singleDigitLetters + 900 * hundredLetters
+      andsSum = 9 * 99 * andLetters
+      onetSum = 11
+   in lastDigitSum + teensSum + doublesSum + hundredsSum + andsSum + onetSum
+
+-- Maximum Path Sum I https://projecteuler.net/problem=18
+
+problem18Input :: String
+problem18Input =
+  """
+  75
+  95 64
+  17 47 82
+  18 35 87 10
+  20 04 82 47 65
+  19 01 23 75 03 34
+  88 02 77 73 07 63 67
+  99 65 04 28 06 16 70 92
+  41 41 26 56 83 40 80 70 33
+  41 48 72 33 47 32 37 16 94 29
+  53 71 44 65 25 43 91 52 97 51 14
+  70 11 33 28 77 73 17 78 39 68 17 57
+  91 71 52 38 17 14 91 43 58 50 27 29 48
+  63 66 04 68 89 53 67 30 73 16 69 87 40 31
+  04 62 98 27 23 09 70 98 73 93 38 53 60 04 23
+  """
+
+problem18Nums :: [[Int]]
+problem18Nums = [mapMaybe readMaybe (words xs) | xs <- lines problem18Input]
+
+problem18Example :: [[Int]]
+problem18Example =
+  [ [3],
+    [7, 4],
+    [2, 4, 6],
+    [8, 5, 9, 3]
+  ]
+
+maxPathSum1 :: [[Int]] -> [Int]
+maxPathSum1 [] = []
+maxPathSum1 (xs@[_] : xss) = addLists xs (maxPathSum1 xss) -- root
+maxPathSum1 [xs] = maxPairs xs -- reached bottom
+maxPathSum1 (xs : xss) = maxPairs (addLists xs (maxPathSum1 xss)) -- step
+
+maxPairs :: [Int] -> [Int]
+maxPairs xs = zipWith max xs (drop 1 xs)
+
+addLists :: [Int] -> [Int] -> [Int]
+addLists = zipWith (+)
+
+-- Counting Sundays https://projecteuler.net/problem=19
+
+monthDays :: Bool -> [Int]
+monthDays leap
+  | leap = [31, 29] ++ r
+  | otherwise = [31, 28] ++ r
+  where
+    r = [31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+monthFirstDay :: Int -> [Int] -> [Int]
+monthFirstDay offset ms = offset : take 11 (go offset ms)
+  where
+    go :: Int -> [Int] -> [Int]
+    go _ [] = []
+    go acc (m' : ms') = d' : go d' ms'
+      where
+        d' = (m' + acc) `mod` 7
+
+isLeapYear :: Int -> Bool
+isLeapYear year
+  | year `mod` 400 == 0 = True
+  | year `mod` 100 == 0 = False
+  | year `mod` 4 == 0 = True
+  | otherwise = False
+
+nextYearOffset :: Int -> Bool -> Int
+nextYearOffset offset isLeap = let leap = if isLeap then 2 else 1 in (offset + leap) `mod` 7
+
+countYearSundays :: Int -> Bool -> Int
+countYearSundays offset isLeap = length (filter (== 6) (monthFirstDay offset (monthDays isLeap)))
+
+offsetsAndLeapsFrom1900 :: Int -> [(Int, Int, Bool)]
+offsetsAndLeapsFrom1900 years = take years (iterate go (1900, 0, False))
+  where
+    go :: (Int, Int, Bool) -> (Int, Int, Bool)
+    go (year, off, leap) =
+      let year' = year + 1
+          leap' = isLeapYear year'
+          off' = nextYearOffset off leap
+       in (year', off', leap')
+
+countingSundays :: Int -> Int
+countingSundays years =
+  let yol = drop 1 (offsetsAndLeapsFrom1900 (years + 1))
+      ys = map (\(_, off, leap) -> countYearSundays off leap) yol
+   in sum ys
