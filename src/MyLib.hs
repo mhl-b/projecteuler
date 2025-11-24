@@ -1,14 +1,21 @@
 {-# LANGUAGE MultilineStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 module MyLib where
 
+import Data.Char (isAlpha, ord)
 import Data.Function
-import Data.Int
+import Data.Graph (Tree)
 import Data.IntMap.Lazy (IntMap)
 import qualified Data.IntMap.Lazy as IntMap
+import Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
 import Data.List
+import Data.List.NonEmpty (toList)
 import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
+import Data.Tree (flatten, pathsToRoot, unfoldForest)
+import Data.Word (Word8)
 import Text.Read (readMaybe)
 
 -- problemZero
@@ -27,13 +34,13 @@ multiples3or5Brute n = sum [x | x <- [1 .. n - 1], x `mod` 3 == 0 || x `mod` 5 =
 arithmeticSeriesAn :: Int -> Int -> Int -> Int
 arithmeticSeriesAn n a1 an = n * (an - a1) `div` 2
 
-arithmeticSeriesD :: Integer -> Integer -> Integer -> Integer
+arithmeticSeriesD :: (Integral a) => a -> a -> a -> a
 arithmeticSeriesD n a1 d = n * (2 * a1 + (n - 1) * d) `div` 2
 
-arithmeticSeriesD0 :: Integer -> Integer -> Integer
+arithmeticSeriesD0 :: (Integral a) => a -> a -> a
 arithmeticSeriesD0 n d = arithmeticSeriesD n d d
 
-arithmeticSeries :: Integer -> Integer
+arithmeticSeries :: (Integral a) => a -> a
 arithmeticSeries n = arithmeticSeriesD0 n 1
 
 multiples3or5Series :: Integer -> Integer
@@ -54,44 +61,38 @@ evenFibNumbers n = sum (takeWhile (< n) evenFibSeq)
 
 -- Largest Prime Factor https://projecteuler.net/problem=3
 
-intSqrtUp :: Integer -> Integer
-intSqrtUp = (ceiling @Double) . sqrt . fromInteger
+intSqrtUp :: (Integral a) => a -> a
+intSqrtUp = (ceiling @Double) . sqrt . fromIntegral
 
 intSqrt :: Int -> Int
 intSqrt = (ceiling @Float) . sqrt . fromIntegral
 
-isFactor :: Integer -> Integer -> Bool
+isFactor :: (Integral a) => a -> a -> Bool
 isFactor n f = n `mod` f == 0
 
-isPrimeTrialDivisionSieve :: [Integer] -> Integer -> Bool
+isPrimeTrialDivisionSieve :: (Integral a) => [a] -> a -> Bool
 isPrimeTrialDivisionSieve sieve n = not (any (isFactor n) (takeWhile (<= intSqrtUp n) sieve))
 
-nextPrime :: [Integer] -> Integer -> Integer
+nextPrime :: (Integral a) => [a] -> a -> a
 nextPrime [] _ = 2
 nextPrime ps lp = fromMaybe undefined (listToMaybe [x | x <- [lp + 1 ..], isPrimeTrialDivisionSieve ps x])
 
-primes :: [Integer]
+primes :: (Integral a) => [a]
 primes = go [] 0
   where
     go ps lp = p : go (ps ++ [p]) p
       where
         p = nextPrime ps lp
 
--- returns power of factor and reminder of N after applying factor power
-
-type CanonicalFactor = (Integer, Integer)
-
-type Factor = Integer
-
 -- returns power of factor and reminder of N after applying factor^power
-factorPower :: Integer -> Factor -> (Integer, Integer)
+factorPower :: (Integral a) => a -> a -> (a, a)
 factorPower n f
   | isFactor n f = (1 + p', n')
   | otherwise = (0, n)
   where
     (p', n') = factorPower (n `div` f) f
 
-canonicalFactorsForm :: [Factor] -> Integer -> [CanonicalFactor]
+canonicalFactorsForm :: (Integral a) => [a] -> a -> [(a, a)]
 canonicalFactorsForm [] _ = []
 canonicalFactorsForm (f : fs) n
   | n == 1 = []
@@ -103,7 +104,7 @@ canonicalFactorsForm (f : fs) n
     (p', n') = factorPower n f
 
 -- returns representation of a number as a list of prime factors and their power
-primeCanonicalFactorsForm :: Integer -> [CanonicalFactor]
+primeCanonicalFactorsForm :: (Integral a) => a -> [(a, a)]
 primeCanonicalFactorsForm = canonicalFactorsForm primes
 
 largestPrimeFactor :: Integer -> Integer
@@ -136,7 +137,7 @@ largestPalindromeProduct3 = largestPalindromeProduct (filter (\(a, b) -> isIntPa
 
 -- Smallest Multiple https://projecteuler.net/problem=5
 
-mergeCanonicalFactors :: [CanonicalFactor] -> [CanonicalFactor] -> [CanonicalFactor]
+mergeCanonicalFactors :: (Integral a) => [(a, a)] -> [(a, a)] -> [(a, a)]
 mergeCanonicalFactors [] [] = []
 mergeCanonicalFactors [] fs = fs
 mergeCanonicalFactors fs [] = fs
@@ -149,10 +150,10 @@ mergeCanonicalFactors (f : fs) (f' : fs') =
     (f1, p1) = f
     (f2, p2) = f'
 
-mergeCanonicalFactorsForRange :: [Integer] -> [CanonicalFactor]
+mergeCanonicalFactorsForRange :: (Integral a) => [a] -> [(a, a)]
 mergeCanonicalFactorsForRange = foldr (mergeCanonicalFactors . primeCanonicalFactorsForm) []
 
-canonicalFactorsToInteger :: [CanonicalFactor] -> Integer
+canonicalFactorsToInteger :: (Integral a) => [(a, a)] -> a
 canonicalFactorsToInteger [] = 1
 canonicalFactorsToInteger fs = foldr (\(f, p) a -> a * f ^ p) 1 fs
 
@@ -332,19 +333,19 @@ divisorsBrute n = [x | x <- [1 .. n], n `mod` x == 0]
 numberOfDivisorsBrute :: Integer -> Integer
 numberOfDivisorsBrute = fromIntegral . length . divisorsBrute
 
-numberOfDivisorsFromCanonical :: [CanonicalFactor] -> Integer
+numberOfDivisorsFromCanonical :: (Integral a) => [(a, a)] -> a
 numberOfDivisorsFromCanonical = product . map ((+ 1) . snd)
 
-divisorsProduct :: [Integer] -> [Integer] -> [Integer]
+divisorsProduct :: (Integral a) => [a] -> [a] -> [a]
 divisorsProduct a b = a ++ b ++ [a' * b' | a' <- a, b' <- b]
 
-factorDivisors :: CanonicalFactor -> [Integer]
+factorDivisors :: (Integral a) => (a, a) -> [a]
 factorDivisors (b, f) = [b ^ f' | f' <- [1 .. f]]
 
-canonicalFromToDivisors :: [CanonicalFactor] -> [Integer]
+canonicalFromToDivisors :: (Integral a) => [(a, a)] -> [a]
 canonicalFromToDivisors fs = 1 : foldr (divisorsProduct . factorDivisors) [] fs
 
-divisorsCanonical :: Integer -> [Integer]
+divisorsCanonical :: (Integral a) => a -> [a]
 divisorsCanonical = canonicalFromToDivisors . primeCanonicalFactorsForm
 
 numberOfDivisors :: Integer -> Integer
@@ -465,7 +466,7 @@ problem13Input =
 
 type LargeNum = [Digit]
 
-type Digit = Int8
+type Digit = Word8
 
 readLargeNum :: String -> LargeNum
 readLargeNum = reverse . mapMaybe (readMaybe . (: []))
@@ -558,7 +559,7 @@ latticePaths n = last (concat (runningSumsSquare n))
 
 -- Power Digit Sum https://projecteuler.net/problem=16
 
-digitSum :: Integer -> Integer
+digitSum :: (Integral a) => a -> a
 digitSum 0 = 0
 digitSum n = let (q, r) = divMod n 10 in r + digitSum q
 
@@ -624,15 +625,15 @@ problem18Example =
 
 maxPathSum1 :: [[Int]] -> [Int]
 maxPathSum1 [] = []
-maxPathSum1 (xs@[_] : xss) = addLists xs (maxPathSum1 xss) -- root
-maxPathSum1 [xs] = maxPairs xs -- reached bottom
-maxPathSum1 (xs : xss) = maxPairs (addLists xs (maxPathSum1 xss)) -- step
+maxPathSum1 (xs : xss) = maxPairs (addLists xs (maxPathSum1 xss))
 
 maxPairs :: [Int] -> [Int]
+maxPairs xs@[_] = xs
 maxPairs xs = zipWith max xs (drop 1 xs)
 
 addLists :: [Int] -> [Int] -> [Int]
-addLists = zipWith (+)
+addLists xs [] = xs
+addLists xs ys = zipWith (+) xs ys
 
 -- Counting Sundays https://projecteuler.net/problem=19
 
@@ -680,3 +681,120 @@ countingSundays years =
   let yol = drop 1 (offsetsAndLeapsFrom1900 (years + 1))
       ys = map (\(_, off, leap) -> countYearSundays off leap) yol
    in sum ys
+
+-- Factorial Digit Sum https://projecteuler.net/problem=20
+
+factorialDigitSum :: Integer -> Integer
+factorialDigitSum = digitSum . factorial
+
+-- Amicable Numbers https://projecteuler.net/problem=21
+
+properDivisors :: (Integral a) => a -> [a]
+properDivisors = init . divisorsCanonical
+
+isAmicableNum :: Integer -> Bool
+isAmicableNum a =
+  let da = (sum . properDivisors) a
+      db = (sum . properDivisors) da
+   in db == a && a /= da
+
+amicableNumbers :: [Integer] -> Integer
+amicableNumbers xs = sum (filter isAmicableNum xs)
+
+-- Names Scores https://projecteuler.net/problem=22
+
+problem22Input :: IO String
+problem22Input = readFile "0022_names.txt"
+
+parseNames :: String -> [String]
+parseNames ns =
+  let ns' = dropWhile (not . isAlpha) ns
+   in case span isAlpha ns' of
+        ([], []) -> []
+        (w, ws) -> w : parseNames ws
+
+alphaValue :: String -> Int
+alphaValue w = sum (map ((\n -> n - 64) . ord) w)
+
+nameScore :: Int -> String -> Int
+nameScore pos word = pos * alphaValue word
+
+namesScores :: IO Int
+namesScores = do
+  input <- problem22Input
+  let names = zip [1 ..] (sort (parseNames input))
+      scores = map (\(i, w) -> i * alphaValue w) names
+  return (sum scores)
+
+-- Non-Abundant Sums https://projecteuler.net/problem=23
+
+nonEmptySubs :: [a] -> [[a]]
+nonEmptySubs xs = takeWhile (not . null) (iterate (drop 1) xs)
+
+unfoldPrimeFactors :: (Integral a) => a -> (a, a, [a]) -> (a, [(a, a, [a])])
+unfoldPrimeFactors bound (factor, runningProduct, primes') =
+  let primeSubs = nonEmptySubs primes'
+      subForest =
+        map
+          ( \ps -> case ps of
+              [] -> undefined
+              (factor' : _) -> (factor', factor' * runningProduct, ps)
+          )
+          primeSubs
+      subForest' = filter (\(_, p', _) -> p' <= bound) subForest
+   in (factor, subForest')
+
+primeFactorsForest :: (Integral a) => a -> [Tree a]
+primeFactorsForest n =
+  let seeds =
+        map
+          ( \ps -> case ps of
+              [] -> undefined
+              (p : _) -> (p, p, ps)
+          )
+          (nonEmptySubs (takeWhile (<= n) primes))
+   in unfoldForest (unfoldPrimeFactors n) seeds
+
+freqList :: (Eq a, Integral b) => [a] -> [(a, b)]
+freqList [] = []
+freqList (x : xs) = snd (go ((x, 1), []) xs)
+  where
+    go :: (Eq a, Integral b) => ((a, b), [(a, b)]) -> [a] -> ((a, b), [(a, b)])
+    go (acc, result) [] = (acc, acc : result)
+    go ((y, f), result) (y' : ys') =
+      let acc =
+            if y == y'
+              then ((y, f + 1), result)
+              else ((y', 1), (y, f) : result)
+       in go acc ys'
+
+primeFactorsForN :: (Integral a) => a -> [[(a, a)]]
+primeFactorsForN n =
+  let pff = primeFactorsForest n
+      factors = map toList (concatMap (flatten . pathsToRoot) pff)
+   in map freqList factors
+
+divisorsForN :: (Integral a) => a -> [(a, [a])]
+divisorsForN n =
+  map
+    (\cf -> (canonicalFactorsToInteger cf, canonicalFromToDivisors cf))
+    (primeFactorsForN n)
+
+abundantNumsTree :: (Integral a) => a -> [a]
+abundantNumsTree n =
+  map fst (filter (\(x, ds) -> sum (init ds) > x) (divisorsForN n))
+
+sumsOfTwo :: (Integral a) => a -> [a] -> [a]
+sumsOfTwo _ [] = []
+sumsOfTwo lim (n : ns) = takeWhile (<= lim) (map (+ n) (n:ns)) ++ sumsOfTwo lim ns
+
+abundantNumsSumOfTwo :: Int -> IntSet
+abundantNumsSumOfTwo n =
+  let ans = sort $ abundantNumsTree n
+      sot = sumsOfTwo n ans
+   in IntSet.fromList sot
+
+nonAbundantNums :: Int -> [Int]
+nonAbundantNums n =
+  let ans = abundantNumsSumOfTwo n
+   in filter (`IntSet.notMember` ans) [1 .. n]
